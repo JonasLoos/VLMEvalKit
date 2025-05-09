@@ -843,3 +843,128 @@ class LLaVA_OneVision_HF(BaseModel):
             return self.generate_inner_video(message, dataset)
         else:
             return self.generate_inner_image(message, dataset)
+
+
+class LLaVA_SCAM(BaseModel):
+    INSTALL_REQ = True
+    INTERLEAVE = True
+
+    def __init__(self, model_path="/llava-checkpoints/llava-v1.5-7b-openai-clip-vit-large-patch14-336-bs16-bf16-zero3-12.8", **kwargs):
+        try:
+            from llava.constants import (
+                IMAGE_TOKEN_INDEX,
+                DEFAULT_IMAGE_TOKEN,
+                DEFAULT_IM_START_TOKEN,
+                DEFAULT_IM_END_TOKEN,
+            )
+            from llava.conversation import conv_templates, SeparatorStyle
+            from llava.model.builder import load_pretrained_model
+            from llava.mm_utils import (
+                get_model_name_from_path,
+                tokenizer_image_token,
+                process_images,
+                KeywordsStoppingCriteria,
+            )
+        except ImportError as e:
+            logging.critical(
+                "LLaVA-related import failed. Please ensure LLaVA is installed correctly."
+            )
+            raise e
+
+        self.model_path = model_path
+        self.IMAGE_TOKEN_INDEX = IMAGE_TOKEN_INDEX
+        self.DEFAULT_IMAGE_TOKEN = DEFAULT_IMAGE_TOKEN
+        self.DEFAULT_IM_START_TOKEN = DEFAULT_IM_START_TOKEN
+        self.DEFAULT_IM_END_TOKEN = DEFAULT_IM_END_TOKEN
+
+        model_name = get_model_name_from_path(model_path)
+        try:
+            # Load model without specifying device_map, assuming it handles GPU placement or defaults to CPU then moved.
+            self.tokenizer, self.model, self.image_processor, self.context_len = \
+                load_pretrained_model(model_path, model_base=None, model_name=model_name)
+        except Exception as e:
+            logging.error(f"Error loading LLaVA model {model_path} (model name: {model_name}): {e}")
+            raise e
+
+        self.model = self.model.cuda().eval()
+
+        self.conv_mode = "llava_v1"
+        self.conv_templates = conv_templates
+        self.tokenizer_image_token = tokenizer_image_token
+        self.process_images = process_images
+        self.KeywordsStoppingCriteria = KeywordsStoppingCriteria
+        self.SeparatorStyle = SeparatorStyle
+
+        default_gen_kwargs = dict(
+            temperature=0.0,
+            max_new_tokens=1024,
+            use_cache=True,
+            do_sample=False,  # Default for temperature 0.0
+        )
+        
+        passed_temp = kwargs.get('temperature', 0.0)
+        if passed_temp > 0:
+            default_gen_kwargs['do_sample'] = True
+        
+        default_gen_kwargs.update(kwargs)
+        self.kwargs = default_gen_kwargs
+        warnings.warn(f"LLaVA_SCAM initialized with generation kwargs: {self.kwargs}")
+
+    def generate_inner(self, message, dataset=None):
+        text_parts = [item['value'] for item in message if item['type'] == 'text']
+        image_paths = [item['value'] for item in message if item['type'] == 'image']
+        
+        full_text_prompt = "".join(text_parts)
+        
+        pil_image = None
+        image_tensor_final = None
+        image_sizes_for_generate = None
+
+        if image_paths:
+            if len(image_paths) > 1:
+                warnings.warn(f"LLaVA_SCAM expects a single image, but {len(image_paths)} were provided. Using the first one: {image_paths[0]}")
+            try:
+                pil_image = Image.open(image_paths[0]).convert("RGB")
+            except Exception as e:
+                logging.error(f"Failed to load image {image_paths[0]}: {e}. Proceeding without image.")
+                pil_image = None 
+        
+        if pil_image:
+            if getattr(self.model.config, 'mm_use_im_start_end', False):
+                qs = f"{self.DEFAULT_IM_START_TOKEN}{self.DEFAULT_IMAGE_TOKEN}{self.DEFAULT_IM_END_TOKEN}\n{full_text_prompt}"
+            else:
+                qs = f"{self.DEFAULT_IMAGE_TOKEN}\n{full_text_prompt}"
+        else:
+            qs = full_text_prompt
+            
+        conv = self.conv_templates[self.conv_mode].copy()
+        conv.append_message(conv.roles[0], qs)
+        conv.append_message(conv.roles[1], None)
+        prompt_for_tokenizer = conv.get_prompt()
+
+        input_ids = self.tokenizer_image_token(
+            prompt_for_tokenizer, self.tokenizer, self.IMAGE_TOKEN_INDEX, return_tensors="pt"
+        ).unsqueeze(0).cuda()
+
+        if pil_image:
+            # process_images returns a list of tensors.
+            image_tensor_list = self.process_images([pil_image], self.image_processor, self.model.config)
+            if image_tensor_list:
+                image_tensor_final = image_tensor_list[0].unsqueeze(0).to(device=self.model.device, dtype=torch.float16)
+            image_sizes_for_generate = [pil_image.size]
+        
+        stop_str = conv.sep if conv.sep_style != self.SeparatorStyle.TWO else conv.sep2
+        keywords = [stop_str]
+        stopping_criteria = self.KeywordsStoppingCriteria(keywords, self.tokenizer, input_ids)
+
+        with torch.inference_mode():
+            output_ids = self.model.generate(
+                input_ids,
+                images=image_tensor_final,
+                image_sizes=image_sizes_for_generate,
+                stopping_criteria=[stopping_criteria],
+                **self.kwargs
+            )
+        
+        output_text = self.tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
+        return output_text
