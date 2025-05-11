@@ -868,7 +868,7 @@ class LLaVA_SCAM(BaseModel):
         except ImportError as e:
             logging.critical(
                 "LLaVA-related import failed. Please ensure LLaVA is installed correctly. "
-                "`pip install git+ssh://git@github.com/Bliss-e-V/LLaVA-OpenCLIP.git && pip install open-clip-torch`"
+                "`pip install git+https://github.com/Bliss-e-V/LLaVA-OpenCLIP.git --no-deps && pip install open-clip-torch`"
             )
             raise e
 
