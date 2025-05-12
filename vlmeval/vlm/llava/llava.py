@@ -849,7 +849,7 @@ class LLaVA_SCAM(BaseModel):
     INSTALL_REQ = True
     INTERLEAVE = True
 
-    def __init__(self, model_path="/llava-checkpoints/llava-v1.5-7b-openai-clip-vit-large-patch14-336-bs16-bf16-zero3-12.8", **kwargs):
+    def __init__(self, model_path="./llava-checkpoints/llava-v1.5-7b-UCSC-VLAA-ViT-L-14-CLIPA-336-datacomp1B-bs2-bf16-zero2-11.8", **kwargs):
         try:
             from llava.constants import (
                 IMAGE_TOKEN_INDEX,
@@ -950,8 +950,7 @@ class LLaVA_SCAM(BaseModel):
         if pil_image:
             # process_images returns a list of tensors.
             image_tensor_list = self.process_images([pil_image], self.image_processor, self.model.config)
-            if image_tensor_list:
-                image_tensor_final = image_tensor_list[0].unsqueeze(0).to(device=self.model.device, dtype=torch.float16)
+            image_tensor_final = image_tensor_list[0].unsqueeze(0).to(device=self.model.device, dtype=torch.float16)
             image_sizes_for_generate = [pil_image.size]
         
         stop_str = conv.sep if conv.sep_style != self.SeparatorStyle.TWO else conv.sep2
