@@ -849,7 +849,7 @@ class LLaVA_SCAM(BaseModel):
     INSTALL_REQ = True
     INTERLEAVE = True
 
-    def __init__(self, model_path="./llava-checkpoints/llava-v1.5-7b-UCSC-VLAA-ViT-L-14-CLIPA-336-datacomp1B-bs2-bf16-zero2-11.8", **kwargs):
+    def __init__(self, model_path="", **kwargs):
         try:
             from llava.constants import (
                 IMAGE_TOKEN_INDEX,
@@ -968,3 +968,11 @@ class LLaVA_SCAM(BaseModel):
         
         output_text = self.tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
         return output_text
+
+class LLaVA_SCAM_CUSTOM(LLaVA_SCAM):
+    def __init__(self, model_path="./llava-checkpoints/llava-v1.5-7b-UCSC-VLAA-ViT-L-14-CLIPA-336-datacomp1B-bs2-bf16-zero2-11.8", **kwargs):
+        super().__init__(model_path, **kwargs)
+
+class LLaVA_SCAM_ORIGINAL(LLaVA_SCAM):
+    def __init__(self, model_path="./llava-checkpoints/llava-v1.5-7b-openai-clip-vit-large-patch14-336-bs16-bf16-zero3-12.8", **kwargs):
+        super().__init__(model_path, **kwargs)

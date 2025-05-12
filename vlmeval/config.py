@@ -622,6 +622,8 @@ llava_series = {
         LLaVA_OneVision_HF, model_path="NCSOFT/VARCO-VISION-14B-HF"
     ),
     "llava_scam": LLaVA_SCAM,
+    "llava_scam_custom": LLaVA_SCAM_CUSTOM,
+    "llava_scam_original": LLaVA_SCAM_ORIGINAL,
 }
 
 vita_series = {
