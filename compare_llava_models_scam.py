@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -57,5 +59,5 @@ plt.legend()
 
 # Adjust layout and save
 plt.tight_layout()
-plt.savefig('llava_comparison.png', dpi=300, bbox_inches='tight')
+plt.savefig('llava_comparison_scam.png', dpi=300, bbox_inches='tight')
 plt.close()
