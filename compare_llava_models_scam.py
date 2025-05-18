@@ -10,7 +10,7 @@ OUTPUT_DIR = Path('outputs')
 def load_model_data(model_name):
     folder_path = OUTPUT_DIR / model_name
     if not folder_path.exists(): return None
-    subfolder = [f for f in folder_path.iterdir() if f.is_dir()][0]
+    subfolder = [*[f for f in folder_path.iterdir() if f.is_dir()], folder_path][0]
     csv_path = subfolder / f'{model_name}_SCAM_acc.csv'
     if not csv_path.exists(): return None
     df = pd.read_csv(csv_path)
